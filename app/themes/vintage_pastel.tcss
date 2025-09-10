@@ -1,0 +1,26 @@
+/* app/themes/vintage_pastel.tcss */
+/* Burada değişken TANIMLAMAYIZ; sadece KULLANIRIZ. Değişkenler Python'daki Theme'den gelir. */
+
+App {
+    background: $background;
+    color: $foreground;
+}
+
+#label {
+    padding: 1 1;
+    color: $primary-lighten-2;   /* Textual otomatik lighten/darken üretir */
+}
+
+#search {
+    margin: 0 1;
+    background: $panel;
+    border: tall $primary-darken-2;
+    color: $foreground;
+}
+
+#preview {
+    margin: 1;
+    padding: 1;
+    border: round $secondary-lighten-2;
+    background: $surface;
+}

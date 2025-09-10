@@ -1,0 +1,4 @@
+[tool.poetry]
+name = "spinode"
+version = "0.1.0"
+description = "TUI app for model operations"
