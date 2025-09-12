@@ -41,9 +41,13 @@ def derive_pipeline_options(class_name: str) -> List[Dict[str, str]]:
     # name/nameAlias varsa
     if "name" in names or "nameAlias" in names:
         out.append({"id": "grep:^name", "label": 'grep "^name "'})
+    if "epgDn" in names:
+        out.append({"id": "grep:^epgDn", "label": 'grep "^epgDn"'})
     # BGP benzeri
     if "operSt" in names or "lastFlapTs" in names:
         out.append({"id": "grep:bgp", "label": 'grep "operSt\\|lastFlapTs"'})
+    if "dn" in names and ("operSt" in names or "lastFlapTs" in names):
+        out.append({"id": "grep:dn|operSt|lastFlapTs", "label": 'grep "dn\\|operSt\\|lastFlapTs"'})
     # default sort/uniq
     out.append({"id": "sortu", "label": "sort -u"})
     out.append({"id": "uniq", "label": "uniq"})

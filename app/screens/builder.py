@@ -10,7 +10,18 @@ from core.moquery import Condition, render_moquery
 from core.diagram import to_mermaid, to_ascii
 from core.audit import log_query_run
 
-OPS = [("exact","exact"),("contains","contains"),("regex","regex"),("startswith","startswith"),("in","in")]
+OPS = [
+    ("= (exact)", "exact"),
+    ("contains", "contains"),
+    ("regex", "regex"),
+    ("starts with", "startswith"),
+    ("in list", "in"),
+    ("!= (not equal)", "ne"),
+    ("> (greater than)", "gt"),
+    (">= (greater or equal)", "ge"),
+    ("< (less than)", "lt"),
+    ("<= (less or equal)", "le"),
+]
 
 class BuilderScreen(Screen):
     """SPINODE — Builder"""
@@ -204,32 +215,6 @@ class BuilderScreen(Screen):
         self.conds.append(Condition(prop=prop, op=op, value=val))
         self.query_one("#val", Input).value = ""
         self._refresh_preview()
-    def on_list_view_selected(self, event: ListView.Selected) -> None:
-        # yalnızca templates listesi ise
-        if not str(event.list_view.id) == "templates":
-            return
-        item_id = event.item.id or ""
-        if not item_id.startswith("tpl_"):
-            return
-        idx = int(item_id.split("_")[1])
-        tpl = self._templates[idx]
-        # koşulları uygula
-        self.conds = [Condition(prop=c["prop"], op=c["op"], value=c["value"]) for c in tpl.get("conds", [])]
-        # # pipeline checkbox’larını işaretle
-        # for pid in getattr(self, "_pipe_ids", []):
-        #     self.query_one(f"#{pid}", Checkbox).value = False
-        # for p in tpl.get("pipes", []):
-        #     pid = f"pipe:{p}"
-        #     if pid in getattr(self, "_pipe_ids", []):
-        #         self.query_one(f"#{pid}", Checkbox).value = True
-        for wid in list(getattr(self, "_pipe_map", {}).keys()):
-            self.query_one(f"#{wid}", Checkbox).value = False
-        for logical in tpl.get("pipes", []):
-            # logical → widget id bul
-            target = next((wid for wid, lid in self._pipe_map.items() if lid == logical), None)
-            if target:
-                self.query_one(f"#{target}", Checkbox).value = True
-        self._refresh_preview()
 
     def _refresh_preview(self):
         # pipeline topla (dinamik id eşlemesi ile)
@@ -244,8 +229,12 @@ class BuilderScreen(Screen):
                 greps.append('^dn')
             elif logical == "grep:^name":
                 greps.append('^name ')
+            elif logical == "grep:^epgDn":
+                greps.append('^epgDn')
             elif logical == "grep:bgp":
                 greps.append('operSt\\|lastFlapTs')
+            elif logical == "grep:dn|operSt|lastFlapTs":
+                greps.append('dn\\|operSt\\|lastFlapTs')
             elif logical == "sortu":
                 sortu = True
             elif logical == "uniq":
