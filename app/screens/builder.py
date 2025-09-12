@@ -53,6 +53,7 @@ class BuilderScreen(Screen):
             with Vertical(id="left"):
                 yield Static("", id="class_title")
                 with Horizontal():
+                    yield Select([("AND", "and"), ("OR", "or")], prompt="Join", id="join", disabled=True, value="and")
                     yield Select([], prompt="Prop", id="prop")
                     yield Select(OPS, prompt="Op", id="op")
                 yield Input(placeholder="value / regex / a,b,c", id="val")
@@ -111,7 +112,7 @@ class BuilderScreen(Screen):
         props = cur.fetchall()
         conn.close()
         if not props:
-            props = [("name",1),("nameAlias",0),("dn",0),("epgDn",0)]
+            props = [("name",1),("nameAlias",0),("dn",0)]
 
         self.query_one("#prop", Select).set_options([(p[0], p[0]) for p in props])
         self.query_one("#props", TextArea).load_text(
@@ -128,14 +129,6 @@ class BuilderScreen(Screen):
             "\n".join([f"• {p['name']}{' (naming)' if p.get('is_naming') else ''}" for p in prop_rows])
         )
 
-        # # PIPELINE — dinamik
-        # pipeline = self.query_one("#pipeline")
-        # pipeline.remove_children()
-        # self._pipe_ids = []  # seçili id'leri okumak için
-        # for opt in derive_pipeline_options(self.cls):
-        #     cb = Checkbox(opt["label"], id=f"pipe:{opt['id']}")
-        #     pipeline.mount(cb)
-        #     self._pipe_ids.append(f"pipe:{opt['id']}")
         pipeline = self.query_one("#pipeline")
         pipeline.remove_children()
         # widget_id -> logical_id haritası (Textual id'leri güvenli hale getiriyoruz)
@@ -161,6 +154,8 @@ class BuilderScreen(Screen):
         self.query_one("#val", Input).value = ""
         self._refresh_preview()
         self.query_one("#prop", Select).focus()
+        self.query_one("#join", Select).disabled = True
+        self.query_one("#join", Select).value = "and"
     # ---- actions
     def action_add_cond(self):
         self._add_condition()
@@ -191,6 +186,8 @@ class BuilderScreen(Screen):
             self._add_condition()
         elif ev.button.id == "clear":
             self.conds = []
+            self.query_one("#join", Select).disabled = True
+            self.query_one("#join", Select).value = "and"
             self._refresh_preview()
         elif ev.button.id == "mm":
             self.action_diagram()
@@ -210,13 +207,26 @@ class BuilderScreen(Screen):
         prop = self.query_one("#prop", Select).value
         op = self.query_one("#op", Select).value
         val = self.query_one("#val", Input).value
+        join = self.query_one("#join", Select).value or "and"
         if not prop or not op or not val:
             self.app.notify("Prop/Op seç ve Value gir", severity="warning"); return
-        self.conds.append(Condition(prop=prop, op=op, value=val))
+        if not self.conds:
+            join = "and"
+        self.conds.append(Condition(prop=prop, op=op, value=val, join=join))
         self.query_one("#val", Input).value = ""
+        self.query_one("#join", Select).disabled = False
+        self.query_one("#join", Select).value = "and"
         self._refresh_preview()
 
     def _refresh_preview(self):
+        # join select state
+        join_sel = self.query_one("#join", Select)
+        if not self.conds:
+            join_sel.disabled = True
+            join_sel.value = "and"
+        else:
+            join_sel.disabled = False
+
         # pipeline topla (dinamik id eşlemesi ile)
         greps = []
         sortu = False
@@ -229,8 +239,6 @@ class BuilderScreen(Screen):
                 greps.append('^dn')
             elif logical == "grep:^name":
                 greps.append('^name ')
-            elif logical == "grep:^epgDn":
-                greps.append('^epgDn')
             elif logical == "grep:bgp":
                 greps.append('operSt\\|lastFlapTs')
             elif logical == "grep:dn|operSt|lastFlapTs":
@@ -242,7 +250,12 @@ class BuilderScreen(Screen):
 
         greps_cli = [f'"{g}"' for g in greps] if greps else None
         mq = render_moquery(self.cls, self.conds, greps=greps_cli, sort_unique=sortu, uniq=uniq)
-        lines = [f"{c.prop} {c.op} {c.value}" for c in self.conds] or ["(koşul yok)"]
+        lines = []
+        for i, c in enumerate(self.conds):
+            prefix = "" if i == 0 else f"{c.join.upper()} "
+            lines.append(f"{prefix}{c.prop} {c.op} {c.value}")
+        if not lines:
+            lines = ["(koşul yok)"]
         self.query_one("#conds", TextArea).load_text("\n".join(lines))
         self.query_one("#mq", TextArea).load_text(mq)
 
@@ -255,7 +268,10 @@ class BuilderScreen(Screen):
         idx = int(item_id.split("_")[1])
         tpl = self._templates[idx]
         # koşulları uygula
-        self.conds = [Condition(prop=c["prop"], op=c["op"], value=c["value"]) for c in tpl.get("conds", [])]
+        self.conds = [
+            Condition(prop=c["prop"], op=c["op"], value=c["value"], join=c.get("join", "and"))
+            for c in tpl.get("conds", [])
+        ]
         # tüm pipeline checkbox'larını temizle
         for wid in list(getattr(self, "_pipe_map", {}).keys()):
             self.query_one(f"#{wid}", Checkbox).value = False

@@ -21,15 +21,18 @@ Op = Literal[
     "<=",
 ]
 
+Join = Literal["and", "or"]
+
 @dataclass
 class Condition:
     prop: str
     op: Op
     value: str
+    join: Join = "and"
 
 def build_filter_string(class_name: str, conds: List[Condition]) -> str:
     pieces = []
-    for c in conds:
+    for i, c in enumerate(conds):
         op = {"!=": "ne", ">": "gt", ">=": "ge", "<": "lt", "<=": "le"}.get(c.op, c.op)
         star = "*" if op in ("contains", "regex", "startswith", "in") else ""
         raw_val = c.value
@@ -53,7 +56,8 @@ def build_filter_string(class_name: str, conds: List[Condition]) -> str:
             "lt": "<",
             "le": "<=",
         }.get(op, "")
-        pieces.append(f'{class_name}.{c.prop}{op_symbol}{star}"{val}"')
+        join = "" if i == 0 else f"{c.join} " if c.join in ("and", "or") else "and "
+        pieces.append(f'{join}{class_name}.{c.prop}{op_symbol}{star}"{val}"')
     return " ".join(pieces)
 
 def render_moquery(
